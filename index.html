@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura TV Home</title>
+    <style>
+        :root {
+            --ease-tv: cubic-bezier(0.2, 0, 0, 1);
+            --card-w: 260px;
+            --card-h: 160px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            outline: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #06070a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 
+           Zero-Cost Ambient Glow (NO filter: blur!)
+           Using pure radial-gradient and GPU-accelerated opacity cross-fading.
+        */
+        .ambient-backplane {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            transform: translateZ(0);
+        }
+
+        .ambient-layer {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.35s var(--ease-tv);
+            will-change: opacity;
+            transform: translateZ(0);
+        }
+
+        .ambient-layer.active {
+            opacity: 1;
+        }
+
+        /* Gradient backplates for each app (zero GPU blur cost) */
+        .ambient-stremio { background: radial-gradient(circle at 45% 35%, rgba(124, 58, 237, 0.35) 0%, rgba(76, 29, 149, 0.12) 40%, transparent 70%); }
+        .ambient-lampa   { background: radial-gradient(circle at 45% 35%, rgba(245, 158, 11, 0.35) 0%, rgba(180, 83, 9, 0.12) 40%, transparent 70%); }
+        .ambient-piped   { background: radial-gradient(circle at 45% 35%, rgba(239, 68, 68, 0.35) 0%, rgba(185, 28, 28, 0.12) 40%, transparent 70%); }
+        .ambient-msx     { background: radial-gradient(circle at 45% 35%, rgba(14, 165, 233, 0.35) 0%, rgba(3, 105, 161, 0.12) 40%, transparent 70%); }
+        .ambient-netflix { background: radial-gradient(circle at 45% 35%, rgba(229, 9, 20, 0.35) 0%, rgba(100, 10, 10, 0.12) 40%, transparent 70%); }
+        .ambient-plex    { background: radial-gradient(circle at 45% 35%, rgba(234, 88, 12, 0.35) 0%, rgba(154, 52, 18, 0.12) 40%, transparent 70%); }
+        .ambient-browser { background: radial-gradient(circle at 45% 35%, rgba(16, 185, 129, 0.35) 0%, rgba(4, 120, 87, 0.12) 40%, transparent 70%); }
+
+        /* Stage Layout */
+        .stage {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            padding: 48px 84px 38px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transform: translateZ(0);
+        }
+
+        /* Top Bar */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand-meta {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .clock-display {
+            font-size: 60px;
+            font-weight: 200;
+            letter-spacing: -2px;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .date-meta {
+            display: flex;
+            flex-direction: column;
+            border-left: 2px solid rgba(255, 255, 255, 0.12);
+            padding-left: 18px;
+            gap: 2px;
+        }
+
+        .date-meta .weekday {
+            font-size: 17px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .date-meta .date-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 16px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 14px;
+        }
+
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 22px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            color: #cbd5e1;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transform: translateZ(0);
+            transition: transform 0.18s var(--ease-tv),
+                        background 0.18s var(--ease-tv),
+                        border-color 0.18s var(--ease-tv);
+            will-change: transform;
+        }
+
+        .nav-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .nav-btn.focused {
+            transform: scale3d(1.08, 1.08, 1) translateZ(0);
+            border-color: #ffffff;
+            background: rgba(255, 255, 255, 0.28);
+            color: #ffffff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Top Shelf Hero Spotlight */
+        .top-shelf {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 220px;
+            padding-left: 6px;
+            margin-bottom: 6px;
+        }
+
+        .shelf-badges {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .badge-cat {
+            padding: 4px 11px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #ffffff;
+        }
+
+        .badge-spec {
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        .shelf-title {
+            font-size: 54px;
+            font-weight: 700;
+            letter-spacing: -0.8px;
+            line-height: 1.08;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+        }
+
+        .shelf-description {
+            font-size: 20px;
+            color: #cbd5e1;
+            line-height: 1.45;
+            max-width: 840px;
+            margin-bottom: 18px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+
+        .shelf-prompt {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .tv-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 28px;
+            padding: 0 9px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-size: 13px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        /* 
+           Apps Carousel (GPU Hardware-Accelerated 60FPS)
+           Using pure translate3d with no continuous repaint loops
+        */
+        .rails-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .rail-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            padding-left: 6px;
+            margin-bottom: 6px;
+        }
+
+        .rail-label {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .rail-counter {
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .carousel-viewport {
+            position: relative;
+            width: 100%;
+            overflow: visible;
+        }
+
+        .carousel-track {
+            display: flex;
+            gap: 26px;
+            align-items: center;
+            padding: 16px 6px 20px;
+            transition: transform 0.22s var(--ease-tv);
+            will-change: transform;
+            transform: translate3d(0, 0, 0);
+        }
+
+        /* 
+           High Performance TV Cards:
+           - Fast 180ms cubic-bezier transition
+           - Clean outline & hardware translate3d
+           - No heavy software filters or multi-shadow loops
+        */
+        .tv-card {
+            position: relative;
+            width: var(--card-w);
+            height: var(--card-h);
+            border-radius: 20px;
+            cursor: pointer;
+            flex-shrink: 0;
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            transform: scale3d(1, 1, 1) translate3d(0, 0, 0);
+            transition: transform 0.18s var(--ease-tv),
+                        border-color 0.18s var(--ease-tv),
+                        box-shadow 0.18s var(--ease-tv);
+            will-change: transform;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            opacity: 0.85;
+            overflow: hidden;
+        }
+
+        .tv-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(0, 0, 0, 0.3) 100%);
+            pointer-events: none;
+        }
+
+        .tv-card.focused {
+            transform: scale3d(1.14, 1.14, 1) translate3d(0, -6px, 0);
+            border-color: #ffffff !important;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.75), 0 0 0 3px #ffffff;
+            z-index: 40;
+            opacity: 1;
+        }
+
+        .tv-card .card-icon {
+            position: relative;
+            z-index: 2;
+            width: 60px;
+            height: 60px;
+            filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.5));
+            transform: translateZ(0);
+        }
+
+        .tv-card .card-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .tv-card .card-label {
+            position: relative;
+            z-index: 2;
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.2px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Solid High-Performance Gradients */
+        .card-stremio { background: linear-gradient(135deg, #4c1d95 0%, #1e093d 100%); }
+        .card-lampa   { background: linear-gradient(135deg, #b45309 0%, #451a03 100%); }
+        .card-piped   { background: linear-gradient(135deg, #b91c1c 0%, #450a0a 100%); }
+        .card-msx     { background: linear-gradient(135deg, #0369a1 0%, #082f49 100%); }
+        .card-netflix { background: linear-gradient(135deg, #27272a 0%, #09090b 100%); border-color: rgba(229,9,20,0.4); }
+        .card-plex    { background: linear-gradient(135deg, #9a3412 0%, #431407 100%); }
+        .card-browser { background: linear-gradient(135deg, #047857 0%, #022c22 100%); }
+
+        /* Row 2: Fast Tools & Inputs */
+        .util-track {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            padding: 6px 6px;
+        }
+
+        .util-item {
+            width: 190px;
+            height: 84px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 2px solid rgba(255, 255, 255, 0.09);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 0 18px;
+            cursor: pointer;
+            transform: translateZ(0);
+            transition: transform 0.18s var(--ease-tv),
+                        border-color 0.18s var(--ease-tv),
+                        background 0.18s var(--ease-tv);
+            will-change: transform;
+            flex-shrink: 0;
+        }
+
+        .util-item svg {
+            width: 28px;
+            height: 28px;
+            color: #94a3b8;
+            flex-shrink: 0;
+        }
+
+        .util-item .util-meta {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .util-item .util-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .util-item .util-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .util-item.focused {
+            transform: scale3d(1.08, 1.08, 1) translateZ(0);
+            border-color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.22);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+            z-index: 20;
+        }
+
+        .util-item.focused svg {
+            color: #ffffff;
+        }
+
+        /* Footer */
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .hints-group {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+        }
+
+        .hint-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Fast Launch Overlay */
+        #launch-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 5, 8, 0.94);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s var(--ease-tv);
+        }
+
+        #launch-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .launch-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            transform: scale(0.9);
+            transition: transform 0.2s var(--ease-tv);
+        }
+
+        #launch-overlay.active .launch-box {
+            transform: scale(1);
+        }
+
+        .launch-halo {
+            width: 120px;
+            height: 120px;
+            border-radius: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #7c3aed;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+        }
+
+        .launch-halo svg {
+            width: 64px;
+            height: 64px;
+        }
+
+        .launch-caption {
+            font-size: 36px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Modal */
+        .modal-scrim {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-scrim.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            width: 720px;
+            background: #10131d;
+            border: 2px solid rgba(255, 255, 255, 0.16);
+            border-radius: 26px;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9);
+        }
+
+        .modal-card h3 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 14px;
+            font-size: 19px;
+            color: #ffffff;
+        }
+
+        .modal-input:focus {
+            border-color: #38bdf8;
+        }
+
+        .preset-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .preset-pill {
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            color: #cbd5e1;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hardware-Accelerated Ambient Backplane (Zero CPU Blur Cost) -->
+    <div class="ambient-backplane">
+        <div id="ambient-stremio" class="ambient-layer ambient-stremio active"></div>
+        <div id="ambient-lampa"   class="ambient-layer ambient-lampa"></div>
+        <div id="ambient-piped"   class="ambient-layer ambient-piped"></div>
+        <div id="ambient-msx"     class="ambient-layer ambient-msx"></div>
+        <div id="ambient-netflix" class="ambient-layer ambient-netflix"></div>
+        <div id="ambient-plex"    class="ambient-layer ambient-plex"></div>
+        <div id="ambient-browser" class="ambient-layer ambient-browser"></div>
+    </div>
+
+    <div class="stage">
+        <!-- Header -->
+        <header>
+            <div class="brand-meta">
+                <div id="clock-txt" class="clock-display">00:00</div>
+                <div class="date-meta">
+                    <span id="weekday-txt" class="weekday">Today</span>
+                    <span id="date-txt" class="date-text">--</span>
+                </div>
+                <div class="status-pill">
+                    <div class="status-dot"></div>
+                    <span>AdGuard Active</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="nav-btn" data-row="0" data-col="0" data-action="url-launcher" tabindex="0">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <span>Launch URL</span>
+                </div>
+                <div class="nav-btn" data-row="0" data-col="1" data-action="source-inputs" tabindex="0">
+                    <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+                    <span>HDMI Inputs</span>
+                </div>
+                <div class="nav-btn" data-row="0" data-col="2" data-action="pin-guide" tabindex="0">
+                    <svg viewBox="0 0 24 24"><path d="M16 9V4l1 1V2H7v3l1-1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>
+                    <span>Pin to Menu</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Spotlight Hero -->
+        <section class="top-shelf">
+            <div class="shelf-badges">
+                <span id="shelf-cat" class="badge-cat">STREAMING & TORRENTS</span>
+                <span id="shelf-spec" class="badge-spec">4K HDR • HARDWARE ACCELERATED</span>
+            </div>
+            <h1 id="shelf-title" class="shelf-title">Stremio</h1>
+            <p id="shelf-desc" class="shelf-description">Stream movies, television series, torrents, and add-ons with hardware acceleration and subtitle sync.</p>
+            <div class="shelf-prompt">
+                <span class="tv-key">OK</span>
+                <span>Press to Launch Fullscreen</span>
+            </div>
+        </section>
+
+        <!-- Carousel Rails -->
+        <div class="rails-shell">
+            <div>
+                <div class="rail-header">
+                    <span class="rail-label">Apps</span>
+                    <span id="rail-counter" class="rail-counter">1 of 7</span>
+                </div>
+
+                <div class="carousel-viewport">
+                    <div id="carousel-track" class="carousel-track">
+                        <!-- 1. Stremio -->
+                        <div class="tv-card card-stremio" data-row="1" data-col="0" tabindex="0"
+                             data-title="Stremio" 
+                             data-cat="STREAMING & TORRENTS"
+                             data-spec="4K HDR • DOLBY DIGITAL"
+                             data-theme="stremio"
+                             data-color="#7c3aed"
+                             data-desc="Stream 4K movies, TV series, torrents, and add-ons with hardware acceleration and subtitle sync."
+                             data-url="https://noobygains.github.io/stremio-vidaa-tv/?install_source=sidee">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#7C3AED"/><path d="M9 7L17 12L9 17V7Z" fill="white"/></svg>
+                            </div>
+                            <span class="card-label">Stremio</span>
+                        </div>
+
+                        <!-- 2. Lampa -->
+                        <div class="tv-card card-lampa" data-row="1" data-col="1" tabindex="0"
+                             data-title="Lampa" 
+                             data-cat="ONLINE CINEMA"
+                             data-spec="ONLINE SCRAPER • PLUGINS"
+                             data-theme="lampa"
+                             data-color="#f59e0b"
+                             data-desc="Smart TV online catalog with direct online streaming sources, custom voiceovers, and community plugins."
+                             data-url="http://lampa.mx">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#D97706"/><path d="M12 4C8.686 4 6 6.686 6 10C6 12.3 7.3 14.3 9.2 15.2V17C9.2 17.6 9.6 18 10.2 18H13.8C14.4 18 14.8 17.6 14.8 17V15.2C16.7 14.3 18 12.3 18 10C18 6.686 15.314 4 12 4Z" fill="white"/><rect x="10" y="19" width="4" height="2" rx="1" fill="#FEF3C7"/></svg>
+                            </div>
+                            <span class="card-label">Lampa</span>
+                        </div>
+
+                        <!-- 3. Piped TV -->
+                        <div class="tv-card card-piped" data-row="1" data-col="2" tabindex="0"
+                             data-title="Piped TV" 
+                             data-cat="AD-FREE YOUTUBE"
+                             data-spec="SPONSORBLOCK • NO ADS"
+                             data-theme="piped"
+                             data-color="#ef4444"
+                             data-desc="Stream YouTube videos with zero ads, automatic sponsor segment skipping, and complete privacy."
+                             data-url="https://piped.video">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#DC2626"/><path d="M10 8.5L16 12L10 15.5V8.5Z" fill="white"/></svg>
+                            </div>
+                            <span class="card-label">Piped TV</span>
+                        </div>
+
+                        <!-- 4. Media Station X -->
+                        <div class="tv-card card-msx" data-row="1" data-col="3" tabindex="0"
+                             data-title="Media Station X" 
+                             data-cat="IPTV & FORKPLAYER"
+                             data-spec="M3U CHANNELS • VOKINO"
+                             data-theme="msx"
+                             data-color="#0ea5e9"
+                             data-desc="Launch ForkPlayer web scraper, VoKino catalog, and thousands of live IPTV channels with EPG."
+                             data-url="https://msx.noname.su/">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#0284C7"/><path d="M4 6H20V16H4V6Z" stroke="white" stroke-width="2"/><path d="M9 19H15" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+                            </div>
+                            <span class="card-label">MSX / Fork</span>
+                        </div>
+
+                        <!-- 5. Netflix -->
+                        <div class="tv-card card-netflix" data-row="1" data-col="4" tabindex="0"
+                             data-title="Netflix" 
+                             data-cat="PREMIUM VIDEO"
+                             data-spec="4K DOLBY VISION • ATMOS"
+                             data-theme="netflix"
+                             data-color="#e50914"
+                             data-desc="Stream Netflix Originals, global releases, and documentaries in ultra-high fidelity."
+                             data-url="https://www.netflix.com">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#18181B"/><path d="M6 4H8.8L15.2 20H12.4L6 4Z" fill="#E50914"/><path d="M15.2 4H18V20H15.2V4Z" fill="#E50914"/><path d="M6 4H8.8V20H6V4Z" fill="#B81D24"/></svg>
+                            </div>
+                            <span class="card-label">Netflix</span>
+                        </div>
+
+                        <!-- 6. Plex -->
+                        <div class="tv-card card-plex" data-row="1" data-col="5" tabindex="0"
+                             data-title="Plex Web" 
+                             data-cat="PERSONAL MEDIA"
+                             data-spec="DIRECT PLAY • LOSSLESS"
+                             data-theme="plex"
+                             data-color="#ea580c"
+                             data-desc="Connect directly to your home media library on PC or NAS with posters and audio passthrough."
+                             data-url="https://app.plex.tv/tv-vidaa">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#CC7B19"/><path d="M12 5L18 12L12 19L6 12L12 5Z" fill="white"/></svg>
+                            </div>
+                            <span class="card-label">Plex</span>
+                        </div>
+
+                        <!-- 7. Web Browser -->
+                        <div class="tv-card card-browser" data-row="1" data-col="6" tabindex="0"
+                             data-title="Web Browser" 
+                             data-cat="SYSTEM UTILITY"
+                             data-spec="HTML5 • WEBKIT RUNTIME"
+                             data-theme="browser"
+                             data-color="#10b981"
+                             data-desc="Surf web portals, forums, and custom stream links with full screen viewport."
+                             data-url="https://google.com">
+                            <div class="card-icon">
+                                <svg viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="7" fill="#059669"/><circle cx="12" cy="12" r="8" stroke="white" stroke-width="2"/><ellipse cx="12" cy="12" rx="4" ry="8" stroke="white" stroke-width="2"/><line x1="4" y1="12" x2="20" y2="12" stroke="white" stroke-width="2"/></svg>
+                            </div>
+                            <span class="card-label">Browser</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: Fast Tools -->
+            <div>
+                <div class="rail-header">
+                    <span class="rail-label">Hardware & Quick Actions</span>
+                </div>
+                <div class="util-track">
+                    <div class="util-item" data-row="2" data-col="0" tabindex="0" data-action="hdmi-prompt">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="3"/><path d="M6 17v2m4-2v2m4-2v2m4-2v2M6 7V5m4 2V5m4 2V5m4 2V5"/></svg>
+                        <div class="util-meta">
+                            <span class="util-title">HDMI 1</span>
+                            <span class="util-sub">Console / PC</span>
+                        </div>
+                    </div>
+
+                    <div class="util-item" data-row="2" data-col="1" tabindex="0" data-action="hdmi-prompt">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="3"/><path d="M6 17v2m4-2v2m4-2v2m4-2v2M6 7V5m4 2V5m4 2V5m4 2V5"/></svg>
+                        <div class="util-meta">
+                            <span class="util-title">HDMI 2</span>
+                            <span class="util-sub">Soundbar (eARC)</span>
+                        </div>
+                    </div>
+
+                    <div class="util-item" data-row="2" data-col="2" tabindex="0" data-action="speedtest" data-url="https://fast.com">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                        <div class="util-meta">
+                            <span class="util-title">Speed Test</span>
+                            <span class="util-sub">Fast.com 4K</span>
+                        </div>
+                    </div>
+
+                    <div class="util-item" data-row="2" data-col="3" tabindex="0" data-action="adguard-status">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                        <div class="util-meta">
+                            <span class="util-title">AdGuard DNS</span>
+                            <span class="util-sub">Active & Clean</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <div class="hints-group">
+                <div class="hint-item"><span class="tv-key">◀ ▶</span> <span>Carousel</span></div>
+                <div class="hint-item"><span class="tv-key">▲ ▼</span> <span>Rows</span></div>
+                <div class="hint-item"><span class="tv-key">OK</span> <span>Launch</span></div>
+                <div class="hint-item"><span class="tv-key">1 - 7</span> <span>Fast Select</span></div>
+            </div>
+            <div>Aura TV • 60FPS Fluid Engine</div>
+        </footer>
+    </div>
+
+    <!-- Launching Overlay -->
+    <div id="launch-overlay">
+        <div class="launch-box">
+            <div id="launch-halo" class="launch-halo">
+                <svg id="launch-icon-inner" viewBox="0 0 24 24" fill="white"></svg>
+            </div>
+            <div id="launch-title" class="launch-caption">Launching...</div>
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-url" class="modal-scrim">
+        <div class="modal-card">
+            <h3>Launch Web App</h3>
+            <p style="color: #94a3b8; font-size: 16px;">Type any web URL or choose a preset to open fullscreen:</p>
+            <input type="text" id="url-input" class="modal-input" placeholder="https://" value="https://">
+            <div class="preset-row">
+                <div class="preset-pill" data-url="https://www.twitch.tv">Twitch</div>
+                <div class="preset-pill" data-url="https://soundcloud.com">SoundCloud</div>
+                <div class="preset-pill" data-url="https://kick.com">Kick</div>
+                <div class="preset-pill" data-url="https://app.plex.tv/tv-vidaa">Plex</div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap: 14px; margin-top: 10px;">
+                <div class="nav-btn" id="modal-cancel">Cancel [Back]</div>
+                <div class="nav-btn focused" id="modal-submit">Open [OK]</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-pin" class="modal-scrim">
+        <div class="modal-card">
+            <h3>Pin Launcher to TV Home</h3>
+            <div style="color: #cbd5e1; font-size: 17px; line-height: 1.6; display: flex; flex-direction: column; gap: 12px;">
+                <p>1. Press <b>Home</b> on your TV remote to go to the native menu.</p>
+                <p>2. Scroll to <b>Clean Launcher</b> in your Apps row.</p>
+                <p>3. <b>Hold down OK</b> for 2 seconds (or press the <b>Edit / Options ☰</b> button).</p>
+                <p>4. Press the <b>Left Arrow</b> to slide it to the <b>very first spot (#1)</b>.</p>
+                <p>5. Press <b>OK</b> to lock it. In TV Settings &rarr; System &rarr; Advanced &rarr; Power On Mode, select <b>"Remember Last App"</b> so it boots straight here!</p>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
+                <div class="nav-btn focused" id="pin-ack">Got It [OK]</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // High-performance Sound Synthesizer
+        class SnappyTVAudio {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) this.ctx = new AC();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            }
+            tick() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(750, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.015);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.015);
+            }
+            chime() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(1040, now + 0.12);
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.13);
+            }
+        }
+        const sfx = new SnappyTVAudio();
+
+        // Clock
+        function runClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('clock-txt').textContent = `${h}:${m}`;
+            document.getElementById('weekday-txt').textContent = now.toLocaleDateString(undefined, { weekday: 'long' });
+            document.getElementById('date-txt').textContent = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+        }
+        setInterval(runClock, 1000);
+        runClock();
+
+        // 2D Spatial Grid
+        let currentRow = 1;
+        let currentCol = 0;
+
+        function getGrid() {
+            return [
+                Array.from(document.querySelectorAll('[data-row="0"]')),
+                Array.from(document.querySelectorAll('[data-row="1"]')),
+                Array.from(document.querySelectorAll('[data-row="2"]'))
+            ];
+        }
+
+        function setFocus(row, col) {
+            const grid = getGrid();
+            const prevRow = currentRow;
+            const prevCol = currentCol;
+
+            row = Math.max(0, Math.min(row, grid.length - 1));
+            col = Math.max(0, Math.min(col, grid[row].length - 1));
+
+            if (prevRow !== row || prevCol !== col) {
+                sfx.tick();
+            }
+
+            currentRow = row;
+            currentCol = col;
+
+            document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
+
+            const target = grid[currentRow][currentCol];
+            if (!target) return;
+
+            target.classList.add('focused');
+            target.focus();
+
+            // Centering carousel
+            if (currentRow === 1) {
+                const track = document.getElementById('carousel-track');
+                const cardWidth = 260 + 26;
+                const offset = -(currentCol * cardWidth);
+                track.style.transform = `translate3d(${offset}px, 0, 0)`;
+
+                document.getElementById('rail-counter').textContent = `${currentCol + 1} of ${grid[1].length}`;
+
+                // Top Shelf
+                document.getElementById('shelf-title').textContent = target.getAttribute('data-title') || '';
+                document.getElementById('shelf-cat').textContent = target.getAttribute('data-cat') || '';
+                document.getElementById('shelf-spec').textContent = target.getAttribute('data-spec') || '';
+                document.getElementById('shelf-desc').textContent = target.getAttribute('data-desc') || '';
+
+                // GPU Opacity Crossfade for Ambient Glow
+                const theme = target.getAttribute('data-theme') || 'stremio';
+                document.querySelectorAll('.ambient-layer').forEach(layer => {
+                    layer.classList.toggle('active', layer.id === `ambient-${theme}`);
+                });
+            }
+        }
+
+        function launch(el) {
+            if (!el) return;
+            sfx.chime();
+
+            const action = el.getAttribute('data-action');
+            const url = el.getAttribute('data-url');
+            const title = el.getAttribute('data-title') || el.querySelector('.card-label, .util-title, span')?.textContent || 'App';
+            const color = el.getAttribute('data-color') || '#7c3aed';
+
+            if (action === 'url-launcher') {
+                openModal('modal-url');
+                return;
+            }
+            if (action === 'pin-guide') {
+                openModal('modal-pin');
+                return;
+            }
+            if (action === 'source-inputs' || action === 'hdmi-prompt') {
+                toast('Press INPUT button on your TV remote to switch HDMI inputs.');
+                return;
+            }
+            if (action === 'adguard-status') {
+                toast('AdGuard DNS is active (94.140.14.14) • Ad-blocking active');
+                return;
+            }
+
+            if (url) {
+                const overlay = document.getElementById('launch-overlay');
+                document.getElementById('launch-title').textContent = `Opening ${title}...`;
+                document.getElementById('launch-halo').style.background = color;
+
+                const svg = el.querySelector('svg');
+                if (svg) document.getElementById('launch-icon-inner').innerHTML = svg.innerHTML;
+
+                overlay.classList.add('active');
+                setTimeout(() => { window.location.href = url; }, 550);
+            }
+        }
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            if (m) {
+                m.classList.add('open');
+                const inp = m.querySelector('input');
+                if (inp) inp.focus();
+            }
+        }
+
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            if (m) {
+                m.classList.remove('open');
+                setFocus(currentRow, currentCol);
+            }
+        }
+
+        document.getElementById('modal-cancel').addEventListener('click', () => closeModal('modal-url'));
+        document.getElementById('pin-ack').addEventListener('click', () => closeModal('modal-pin'));
+        document.getElementById('modal-submit').addEventListener('click', () => {
+            const url = document.getElementById('url-input').value.trim();
+            if (url && url.startsWith('http')) {
+                closeModal('modal-url');
+                window.location.href = url;
+            }
+        });
+
+        document.querySelectorAll('.preset-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                const url = pill.getAttribute('data-url');
+                if (url) {
+                    closeModal('modal-url');
+                    window.location.href = url;
+                }
+            });
+        });
+
+        // Remote Key Controller
+        document.addEventListener('keydown', (e) => {
+            sfx.init();
+            const key = e.key;
+            const code = e.keyCode || e.which;
+
+            const modal = document.querySelector('.modal-scrim.open');
+            if (modal) {
+                if (key === 'Escape' || code === 27 || code === 8 || code === 461 || code === 10009) {
+                    e.preventDefault();
+                    closeModal(modal.id);
+                } else if (key === 'Enter' || code === 13) {
+                    e.preventDefault();
+                    if (modal.id === 'modal-pin') closeModal('modal-pin');
+                    else document.getElementById('modal-submit').click();
+                }
+                return;
+            }
+
+            switch (key) {
+                case 'ArrowRight': case 'Right': case 39:
+                    e.preventDefault();
+                    setFocus(currentRow, currentCol + 1);
+                    break;
+                case 'ArrowLeft': case 'Left': case 37:
+                    e.preventDefault();
+                    setFocus(currentRow, currentCol - 1);
+                    break;
+                case 'ArrowDown': case 'Down': case 40:
+                    e.preventDefault();
+                    setFocus(currentRow + 1, currentCol);
+                    break;
+                case 'ArrowUp': case 'Up': case 38:
+                    e.preventDefault();
+                    setFocus(currentRow - 1, currentCol);
+                    break;
+                case 'Enter': case 'Select': case 13:
+                    e.preventDefault();
+                    launch(getGrid()[currentRow][currentCol]);
+                    break;
+                case 'Backspace': case 'Escape': case 'GoBack': case 8: case 27: case 461: case 10009:
+                    e.preventDefault();
+                    setFocus(1, 0);
+                    break;
+                case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+                    e.preventDefault();
+                    const idx = parseInt(key) - 1;
+                    const apps = getGrid()[1];
+                    if (apps && apps[idx]) {
+                        setFocus(1, idx);
+                        launch(apps[idx]);
+                    }
+                    break;
+            }
+        });
+
+        document.querySelectorAll('[data-row]').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                setFocus(parseInt(el.getAttribute('data-row')), parseInt(el.getAttribute('data-col')));
+            });
+            el.addEventListener('click', () => launch(el));
+        });
+
+        let toastTimer;
+        function toast(msg) {
+            let t = document.getElementById('toast-msg');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'toast-msg';
+                t.style.cssText = `
+                    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+                    background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.25);
+                    color: white; padding: 14px 30px; border-radius: 16px; font-size: 17px;
+                    font-weight: 600; box-shadow: 0 16px 36px rgba(0,0,0,0.8); z-index: 2000;
+                    opacity: 0; transition: opacity 0.2s ease; pointer-events: none;
+                `;
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.style.opacity = '1';
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 3200);
+        }
+
+        window.addEventListener('load', () => setFocus(1, 0));
+    </script>
+</body>
+</html>
